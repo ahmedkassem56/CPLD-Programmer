@@ -26,6 +26,9 @@ namespace CPLD_Programmer
         static long logPosition = 0;
         static long errPosition = 0;
 
+        int compareMode = 0;
+        int verboseMode = 0;
+
         System.Timers.Timer logTimer; 
         
         public Form1()
@@ -53,8 +56,8 @@ namespace CPLD_Programmer
                 statusLabel.BackColor = Color.Silver;
                 statusLabel.Text = "Programming in progress";
 
-                int compareMode = compCheckBox.Checked ? 1 : 0;
-                int verboseMode = verbCheckBox.Checked ? 1 : 0;
+                compareMode = compCheckBox.Checked ? 1 : 0;
+                verboseMode = verbCheckBox.Checked ? 1 : 0;
 
                 sessionID = new Random().Next(1, 9999);
                 logName = string.Format("log_{0}.txt", sessionID);
@@ -73,9 +76,11 @@ namespace CPLD_Programmer
                 errPosition = 0;
 
                 logTimer.Enabled = true;
-                int ret = startProgramming(compareMode, verboseMode, textBox1.Text, logName, errName);
 
-                button1.Enabled = true;
+                new Thread(StartProg).Start();
+
+
+                //button1.Enabled = true;
             }
             catch (Exception ex)
             {
@@ -85,14 +90,15 @@ namespace CPLD_Programmer
             }
         }
 
-        /* public void ReEnable()
-         {
-             Thread.Sleep(50);
-             InvokeUI(() =>
+        public void StartProg()
+        {
+            Thread.Sleep(50);
+            int ret = startProgramming(compareMode, verboseMode, textBox1.Text, logName, errName);
+            InvokeUI(() =>
              {
                  button1.Enabled = true;
              });
-         }*/
+        }
         private void button2_Click(object sender, EventArgs e)
         {
             openFileDialog1.ShowDialog(); 
@@ -127,7 +133,6 @@ namespace CPLD_Programmer
             {
                 using (var file = File.Open(errName, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
                 {
-                    //Console.WriteLine(file.Length);
                     if (errPosition != file.Length)
                     {
                         file.Position = errPosition;
@@ -169,6 +174,21 @@ namespace CPLD_Programmer
 
             if (button1.Enabled) // this means that we have finished executing. No need to keep the timer running
             {
+                if (File.ReadAllText(logName).Contains("<<< All TDO outputs matched to the expected values! >>>"))
+                {
+                    InvokeUI(() =>
+                    {
+                        statusLabel.Text = "Successfully uploaded";
+                        statusLabel.BackColor = Color.Green;
+                    });
+                } else if (File.ReadAllText(logName).Contains("TDO outputs didn't match to the expected"))
+                {
+                    InvokeUI(() =>
+                    {
+                        statusLabel.Text = "Failed upload";
+                        statusLabel.BackColor = Color.IndianRed;
+                    });
+                }
                 if (deleteCheckBox.Checked) // delete log files
                 {
                     File.Delete(errName);
